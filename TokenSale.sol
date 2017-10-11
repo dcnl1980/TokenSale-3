@@ -18,7 +18,8 @@ contract TokenSale {
 	string public symbol = 'prePLNTest';
 	uint public decimals = 0;
   uint public totalSupply = 100000000;
-  uint public startTime;
+	uint public startTime;
+	uint public endTime;
 
 	IToken icoToken;
 
@@ -140,6 +141,7 @@ contract TokenSale {
 		tokenSupplies[0] = TokenSupply(100000000, 0, 2000000000000000); // First million of tokens will go 2000000000000000 wei for 1 token
 		tokenSupplies[1] = TokenSupply(100000000, 0, 2000000000000000); // Second million of tokens will go 2000000000000000 wei for 1 token
     startTime = now;
+		endTime = startTime + 20 days;
 	}
 
 	// Incoming transfer from the Presale token buyer
@@ -149,7 +151,13 @@ contract TokenSale {
 		uint amountToBePaid; // Amount to be paid
 		uint amountTransfered = msg.value; // Cost/price in WEI of incoming transfer/payment
 
-		if (amountTransfered <= 0) {
+    if(now > endTime){
+      Error('PreICO ended');
+            msg.sender.transfer(msg.value);
+        return;
+    }
+
+    if (amountTransfered <= 0) {
 		      	Error('no eth was transfered');
               		msg.sender.transfer(msg.value);
 		  	return;
@@ -174,6 +182,7 @@ contract TokenSale {
 
         /*
         **Add bonuses if it is possible
+        //TODO USE SAFE MATH LIBRARY
         */
         if(discountIndex == 0){
           bonusTokens = tokensPossibleToBuy * 30 / 100; //1st million token holders get additional 30% bonus tokens
@@ -203,8 +212,8 @@ contract TokenSale {
         tokensPossibleToBuy += bonusTokens;
 
 
-                if (tokensPossibleToBuy > balanceFor[owner])
-                    tokensPossibleToBuy = balanceFor[owner];
+        if (tokensPossibleToBuy > balanceFor[owner])
+           tokensPossibleToBuy = balanceFor[owner];
 
 				if (tokenSupply.totalSupply + tokensPossibleToBuy > tokenSupply.limit) {
 					tokensPossibleToBuy = tokenSupply.limit - tokenSupply.totalSupply;
@@ -228,7 +237,7 @@ contract TokenSale {
 		    	Error('no token to buy');
             		msg.sender.transfer(msg.value);
 			return;
-        	}
+    }
 
 		// Transfer tokens to buyer
 		transferFromOwner(msg.sender, tokenAmount);
