@@ -13,11 +13,12 @@ contract IToken {
  */
 contract TokenSale {
 	// Token-related properties/description to display in Wallet client / UI
-	string public standard = 'prePLNToken 0.1';
+	string public standard = 'prePLNToken 0.2';
 	string public name = 'prePLNToken';
-	string public symbol = 'prePLN';
+	string public symbol = 'prePLN 0.2';
 	uint public decimals = 0;
-  uint public totalSupply = 200000000;
+  uint public totalSupply = 100000000;
+  uint public startTime;
 
 	IToken icoToken;
 
@@ -138,7 +139,7 @@ contract TokenSale {
 		// Discount policy
 		tokenSupplies[0] = TokenSupply(100000000, 0, 2000000000000000); // First million of tokens will go 2000000000000000 wei for 1 token
 		tokenSupplies[1] = TokenSupply(100000000, 0, 2000000000000000); // Second million of tokens will go 2000000000000000 wei for 1 token
-
+    startTime = now;
 	}
 
 	// Incoming transfer from the Presale token buyer
@@ -169,6 +170,38 @@ contract TokenSale {
 			if(tokenSupply.totalSupply < tokenSupply.limit) {
 
 				uint tokensPossibleToBuy = amountTransfered / tokenSupply.tokenPriceInWei;
+        uint bonusTokens;
+
+        /*
+        **Add bonuses if it is possible
+        */
+        if(discountIndex == 0){
+          bonusTokens = tokensPossibleToBuy * 30 / 100; //1st million token holders get additional 30% bonus tokens
+        }
+        else if(discountIndex == 1){
+          bonusTokens = tokensPossibleToBuy * 20 / 100; //2nd million token holders get additional 30% bonus tokens
+        }
+
+        //First day buyers get additional 5% bonus tokens
+        if(now - startTime < 1 days){
+          bonusTokens += tokensPossibleToBuy * 5 / 100;
+        }
+
+        //1000 ETH 15%
+        if(amountTransfered >= 1000 ether){
+          bonusTokens += tokensPossibleToBuy * 15 / 100;
+        }
+        //500 ETH 10%
+        else if(amountTransfered >= 500 ether){
+          bonusTokens += tokensPossibleToBuy * 10 / 100;
+        }
+        //200 ETH 5%
+        else if(amountTransfered >= 200 ether){
+          bonusTokens += tokensPossibleToBuy * 5 / 100;
+        }
+
+        tokensPossibleToBuy += bonusTokens;
+
 
                 if (tokensPossibleToBuy > balanceFor[owner])
                     tokensPossibleToBuy = balanceFor[owner];
@@ -177,10 +210,12 @@ contract TokenSale {
 					tokensPossibleToBuy = tokenSupply.limit - tokenSupply.totalSupply;
 				}
 
+
 				tokenSupply.totalSupply += tokensPossibleToBuy;
 				tokenAmount += tokensPossibleToBuy;
 
-				uint delta = tokensPossibleToBuy * tokenSupply.tokenPriceInWei;
+        //Buyers don't pay for bonus tokens
+				uint delta = (tokensPossibleToBuy - bonusTokens) * tokenSupply.tokenPriceInWei;
 
 				amountToBePaid += delta;
                 		amountTransfered -= delta;
@@ -204,6 +239,7 @@ contract TokenSale {
 		// Refund buyer if overpaid / no tokens to sell
 		msg.sender.transfer(msg.value - amountToBePaid);
 	}
+
 
 	/**
 	 * @dev Removes/deletes contract
