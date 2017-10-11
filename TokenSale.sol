@@ -13,9 +13,9 @@ contract IToken {
  */
 contract TokenSale {
 	// Token-related properties/description to display in Wallet client / UI
-	string public standard = 'prePLNToken 0.2';
-	string public name = 'prePLNToken';
-	string public symbol = 'prePLN 0.2';
+	string public standard = 'prePLNTokenTest';
+	string public name = 'prePLNTokenTest';
+	string public symbol = 'prePLNTest';
 	uint public decimals = 0;
   uint public totalSupply = 100000000;
   uint public startTime;
