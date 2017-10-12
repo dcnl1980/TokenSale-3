@@ -1,5 +1,41 @@
 pragma solidity ^0.4.10;
 
+
+
+/**
+* @title SafeMath
+* @dev Math operations with safety checks that throw on error
+*/
+library SafeMath {
+
+function mul(uint256 a, uint256 b) internal constant returns (uint256) {
+  uint256 c = a * b;
+  assert(a == 0 || c / a == b);
+  return c;
+}
+
+function div(uint256 a, uint256 b) internal constant returns (uint256) {
+  // assert(b > 0); // Solidity automatically throws when dividing by 0
+  uint256 c = a / b;
+  // assert(a == b * c + a % b); // There is no case in which this doesn't hold
+  return c;
+}
+
+function sub(uint256 a, uint256 b) internal constant returns (uint256) {
+  assert(b <= a);
+  return a - b;
+}
+
+function add(uint256 a, uint256 b) internal constant returns (uint256) {
+  uint256 c = a + b;
+  assert(c >= a);
+  return c;
+}
+
+}
+
+
+
 /**
  * @title Interface to communicate with ICO token contract
  */
@@ -12,6 +48,8 @@ contract IToken {
  * @title Presale token contract
  */
 contract TokenSale {
+
+  using SafeMath for uint;
 	// Token-related properties/description to display in Wallet client / UI
 	string public standard = 'prePLNTokenTest';
 	string public name = 'prePLNTokenTest';
@@ -138,8 +176,8 @@ contract TokenSale {
 		balanceFor[msg.sender] = 100000000; // Give the creator all initial tokens
 
 		// Discount policy
-		tokenSupplies[0] = TokenSupply(100000000, 0, 2000000000000000); // First million of tokens will go 2000000000000000 wei for 1 token
-		tokenSupplies[1] = TokenSupply(100000000, 0, 2000000000000000); // Second million of tokens will go 2000000000000000 wei for 1 token
+		tokenSupplies[0] = TokenSupply(1000000, 0, 2000000000000000); // First million of tokens will go 2000000000000000 wei for 1 token
+		tokenSupplies[1] = TokenSupply(1000000, 0, 2000000000000000); // Second million of tokens will go 2000000000000000 wei for 1 token
     startTime = now;
 		endTime = startTime + 20 days;
 	}
@@ -147,8 +185,8 @@ contract TokenSale {
 	// Incoming transfer from the Presale token buyer
 	function() payable {
 
-		uint tokenAmount; // Amount of tokens which is possible to buy for incoming transfer/payment
-		uint amountToBePaid; // Amount to be paid
+		uint tokenAmount = 0; // Amount of tokens which is possible to buy for incoming transfer/payment
+		uint amountToBePaid = 0; // Amount to be paid
 		uint amountTransfered = msg.value; // Cost/price in WEI of incoming transfer/payment
 
     if(now > endTime){
@@ -169,7 +207,8 @@ contract TokenSale {
 		      	return;
 		}
 
-		// Determine amount of tokens can be bought according to available supply and discount policy
+    uint bonusTokens = 0;
+    // Determine amount of tokens can be bought according to available supply and discount policy
 		for (uint discountIndex = 0; discountIndex < tokenSupplies.length; discountIndex++) {
 			// If it's not possible to buy any tokens at all skip the rest of discount policy
 
@@ -177,57 +216,24 @@ contract TokenSale {
 
 			if(tokenSupply.totalSupply < tokenSupply.limit) {
 
-				uint tokensPossibleToBuy = amountTransfered / tokenSupply.tokenPriceInWei;
-        uint bonusTokens;
+				uint moneyForTokensPossibleToBuy = min((tokenSupply.limit - tokenSupply.totalSupply) * tokenSupply.tokenPriceInWei ,  amountTransfered);
+			  uint tokensPossibleToBuy = moneyForTokensPossibleToBuy / tokenSupply.tokenPriceInWei;
 
-        /*
-        **Add bonuses if it is possible
-        //TODO USE SAFE MATH LIBRARY
+
+        /**
+        *Add bonuses if it is possible
         */
         if(discountIndex == 0){
-          bonusTokens = tokensPossibleToBuy * 30 / 100; //1st million token holders get additional 30% bonus tokens
+          bonusTokens += SafeMath.div(SafeMath.mul(tokensPossibleToBuy,30), 100); //1st million token holders get additional 30% bonus tokens
         }
         else if(discountIndex == 1){
-          bonusTokens = tokensPossibleToBuy * 20 / 100; //2nd million token holders get additional 30% bonus tokens
+          bonusTokens += SafeMath.div(SafeMath.mul(tokensPossibleToBuy,20), 100); //2nd million token holders get additional 30% bonus tokens
         }
 
-        //First day buyers get additional 5% bonus tokens
-        if(now - startTime < 1 days){
-          bonusTokens += tokensPossibleToBuy * 5 / 100;
-        }
-
-        //1000 ETH 15%
-        if(amountTransfered >= 1000 ether){
-          bonusTokens += tokensPossibleToBuy * 15 / 100;
-        }
-        //500 ETH 10%
-        else if(amountTransfered >= 500 ether){
-          bonusTokens += tokensPossibleToBuy * 10 / 100;
-        }
-        //200 ETH 5%
-        else if(amountTransfered >= 200 ether){
-          bonusTokens += tokensPossibleToBuy * 5 / 100;
-        }
-
-        tokensPossibleToBuy += bonusTokens;
-
-
-        if (tokensPossibleToBuy > balanceFor[owner])
-           tokensPossibleToBuy = balanceFor[owner];
-
-				if (tokenSupply.totalSupply + tokensPossibleToBuy > tokenSupply.limit) {
-					tokensPossibleToBuy = tokenSupply.limit - tokenSupply.totalSupply;
-				}
-
-
-				tokenSupply.totalSupply += tokensPossibleToBuy;
-				tokenAmount += tokensPossibleToBuy;
-
-        //Buyers don't pay for bonus tokens
-				uint delta = (tokensPossibleToBuy - bonusTokens) * tokenSupply.tokenPriceInWei;
-
-				amountToBePaid += delta;
-                		amountTransfered -= delta;
+			  tokenSupply.totalSupply += tokensPossibleToBuy;
+			  tokenAmount += tokensPossibleToBuy;
+			  amountToBePaid += tokensPossibleToBuy * tokenSupply.tokenPriceInWei;
+			  amountTransfered -= amountToBePaid;
 
 			}
 		}
@@ -239,7 +245,45 @@ contract TokenSale {
 			return;
     }
 
-		// Transfer tokens to buyer
+
+    //First day buyers get additional 5% bonus tokens
+    if(now - startTime < 1 days){
+      bonusTokens += SafeMath.div(SafeMath.mul(tokenAmount,5), 100);
+    }
+
+    //1000 ETH 15%
+    if(amountToBePaid >= 1000 ether){
+      bonusTokens += SafeMath.div(SafeMath.mul(tokenAmount,15), 100);
+    }
+    //500 ETH 10%
+    else if(amountToBePaid >= 500 ether){
+      bonusTokens += SafeMath.div(SafeMath.mul(tokenAmount,10), 100);
+    }
+    //200 ETH 5%
+    else if(amountToBePaid >= 200 ether){
+      bonusTokens += SafeMath.div(SafeMath.mul(tokenAmount,5), 100);
+    }
+
+
+    for (discountIndex = 0; discountIndex < tokenSupplies.length; discountIndex++) {
+			// If it's not possible to buy any tokens at all skip the rest of discount policy
+      tokenSupply = tokenSupplies[discountIndex];
+			if(tokenSupply.totalSupply < tokenSupply.limit) {
+        if(tokenSupply.totalSupply + bonusTokens > tokenSupply.limit){
+          uint delta = tokenSupply.limit - tokenSupply.totalSupply;
+          tokenSupply.totalSupply += delta;
+          tokenAmount += delta;
+          bonusTokens -= delta;
+        }
+        else{
+          tokenSupply.totalSupply += bonusTokens;
+          tokenAmount += bonusTokens;
+        }
+      }
+
+    }
+
+    // Transfer tokens to buyer
 		transferFromOwner(msg.sender, tokenAmount);
 
 		// Transfer money to seller
@@ -270,6 +314,17 @@ contract TokenSale {
 		balanceFor[_to] += _value;                            // Add the same to the recipient
         	Transfer(owner,_to,_value);
 		return true;
+	}
+
+  /**
+	 * @dev Find minimal value among two values/parameters
+	 * @param a First value
+	 * @param b Second value
+	 * @return Minimal value
+	 */
+	function min(uint a, uint b) private returns (uint) {
+		if (a < b) return a;
+		else return b;
 	}
 
 }
